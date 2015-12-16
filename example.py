@@ -1,8 +1,8 @@
-from ytchat import youtube_live_chat, get_liveChatId_for_stream_now
+from youtubechat import YoutubeLiveChat, get_live_chat_id_for_stream_now
 from time import sleep
 
-livechat_id = get_liveChatId_for_stream_now("oauth_creds")
-chat_obj = youtube_live_chat("oauth_creds", [livechat_id])
+livechat_id = get_live_chat_id_for_stream_now("oauth_creds")
+chat_obj = YoutubeLiveChat("oauth_creds", [livechat_id])
 
 
 def respond(msgs, chatid):
@@ -13,7 +13,7 @@ def respond(msgs, chatid):
 
 try:
     chat_obj.start()
-    chat_obj.subscribeChatMessage(respond)
+    chat_obj.subscribe_chat_message(respond)
     while True:
         sleep(0.1)
 

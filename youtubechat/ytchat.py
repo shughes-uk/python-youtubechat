@@ -17,7 +17,7 @@ def get_datetime_from_string(datestr):
     return dt
 
 
-def get_liveChatId_for_stream_now(credential_file):
+def get_live_chat_id_for_stream_now(credential_file):
     storage = Storage("oauth_creds")
     credentials = storage.get()
     http = credentials.authorize(httplib2.Http())
@@ -29,7 +29,7 @@ def get_liveChatId_for_stream_now(credential_file):
     return data['items'][0]['snippet']['liveChatId']
 
 
-def get_liveChatId_for_broadcastId(broadcastId, credential_file):
+def get_live_chat_id_for_broadcast_id(broadcastId, credential_file):
     storage = Storage("oauth_creds")
     credentials = storage.get()
     http = credentials.authorize(httplib2.Http())
@@ -41,30 +41,29 @@ def get_liveChatId_for_broadcastId(broadcastId, credential_file):
     return data['items'][0]['snippet']['liveChatId']
 
 
-def resolveChannelIdToName(channelId, http):
+def channelid_to_name(channelId, http):
     url = "https://www.googleapis.com/youtube/v3/channels?part=snippet&id={0}".format(channelId)
     response, content = http.request(url, "GET")
     data = loads(content)
     return data['items'][0]['snippet']['title']
 
 
-class livechatMessage(object):
+class LiveChatMessage(object):
 
-    def __init__(self, http, json=None):
+    def __init__(self, http, json):
         self.http = http
-        if json:
-            self.json = json
-            self.etag = json['etag']
-            self.id = json['id']
-            snippet = json['snippet']
-            self.type = snippet['type']
-            self.messageText = snippet['textMessageDetails']['messageText'].encode('UTF-8')
-            self.displayMessage = snippet['displayMessage'].encode('UTF-8')
-            self.hasDisplayContent = snippet['hasDisplayContent']
-            self.liveChatId = snippet['liveChatId']
-            self.authorChannelId = snippet['authorChannelId']
-            self.authorChannelName = resolveChannelIdToName(self.authorChannelId, http)
-            self.publishedAt = get_datetime_from_string(snippet['publishedAt'])
+        self.json = json
+        self.etag = json['etag']
+        self.id = json['id']
+        snippet = json['snippet']
+        self.type = snippet['type']
+        self.message_text = snippet['textMessageDetails']['messageText'].encode('UTF-8')
+        self.display_message = snippet['displayMessage'].encode('UTF-8')
+        self.has_display_content = snippet['hasDisplayContent']
+        self.live_chat_id = snippet['liveChatId']
+        self.author_channel_id = snippet['authorChannelId']
+        self.author_channel_name = channelid_to_name(self.author_channel_id, http)
+        self.published_at = get_datetime_from_string(snippet['publishedAt'])
 
     def delete(self):
         url = "https://www.googleapis.com/youtube/v3/liveChat/messages"
@@ -72,13 +71,13 @@ class livechatMessage(object):
         resp, content = self.http.request(url, 'DELETE')
 
     def __repr__(self):
-        return self.displayMessage
+        return self.display_message
 
 
-class youtube_live_chat(object):
+class YoutubeLiveChat(object):
 
     def __init__(self, credential_filename, livechatIds):
-        self.logger = logging.getLogger(name="youtube_live_chat")
+        self.logger = logging.getLogger(name="YoutubeLiveChat")
         self.chat_subscribers = []
         self.thread = threading.Thread(target=self.run)
         self.livechatIds = {}
@@ -86,14 +85,23 @@ class youtube_live_chat(object):
         storage = Storage(credential_filename)
         credentials = storage.get()
         self.http = credentials.authorize(httplib2.Http())
-        self.liveChat_api = liveChat_api(self.http)
+        self.livechat_api = LiveChatApi(self.http)
 
         for chat_id in livechatIds:
-            self.livechatIds[chat_id] = {'nextPoll': datetime.now(), 'msg_ids': None}
-            result = self.liveChat_api.Get_All_Messages(chat_id)
-            pollingIntervalMillis = result['pollingIntervalMillis']
-            self.livechatIds[chat_id]['msg_ids'] = {msg['id'] for msg in result['items']}
-            self.livechatIds[chat_id]['nextPoll'] = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
+            self.livechatIds[chat_id] = {'nextPoll': datetime.now(), 'msg_ids': None, 'pageToken': None}
+            result = self.livechat_api.live_chat_messages_list(chat_id)
+            while result['items']:
+                pollingIntervalMillis = result['pollingIntervalMillis']
+                self.livechatIds[chat_id]['msg_ids'] = {msg['id'] for msg in result['items']}
+                self.livechatIds[chat_id]['nextPoll'] = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
+                if result['pageInfo']['totalResults'] > result['pageInfo']['resultsPerPage']:
+                    self.livechatIds[chat_id]['pageToken'] = result['nextPageToken']
+                    time.sleep(result['pollingIntervalMillis'] / 1000)
+                    result = self.livechat_api.live_chat_messages_list(chat_id,
+                                                                       pageToken=self.livechatIds[chat_id]['pageToken'])
+                else:
+                    break
+
         self.logger.debug("Initalized")
 
     def start(self):
@@ -113,23 +121,33 @@ class youtube_live_chat(object):
                 if self.livechatIds[chat_id]['nextPoll'] < datetime.now():
                     msgcache = self.livechatIds[chat_id]['msg_ids']
 
-                    result = self.liveChat_api.Get_All_Messages(chat_id)
-                    # self.logger.debug(pformat(result))
+                    result = self.livechat_api.live_chat_messages_list(chat_id,
+                                                                       pageToken=self.livechatIds[chat_id]['pageToken'])
                     pollingIntervalMillis = result['pollingIntervalMillis']
-                    latest_messages = {msg['id'] for msg in result['items']}
+                    while result['items']:
+                        latest_messages = {msg['id'] for msg in result['items']}
+                        new_messages = latest_messages.difference(msgcache)
+                        new_msg_objs = [LiveChatMessage(self.http, json) for json in result['items']
+                                        if json['id'] in new_messages]
 
-                    new_messages = latest_messages.difference(msgcache)
-                    new_msg_objs = [livechatMessage(self.http, json) for json in result['items']
-                                    if json['id'] in new_messages]
+                        self.livechatIds[chat_id]['msg_ids'].update(new_messages)
+                        nextPoll = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
+                        self.livechatIds[chat_id]['nextPoll'] = nextPoll
+                        if new_msg_objs:
+                            self.logger.debug("New chat messages")
+                            self.logger.debug(new_msg_objs)
+                            for callback in self.chat_subscribers:
+                                callback(new_msg_objs, chat_id)
 
-                    self.livechatIds[chat_id]['msg_ids'].update(new_messages)
-                    nextPoll = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
-                    self.livechatIds[chat_id]['nextPoll'] = nextPoll
-                    if new_msg_objs:
-                        self.logger.debug("New chat messages")
-                        self.logger.debug(new_msg_objs)
-                        for callback in self.chat_subscribers:
-                            callback(new_msg_objs, chat_id)
+                        if result['pageInfo']['totalResults'] > result['pageInfo']['resultsPerPage']:
+                            self.livechatIds[chat_id]['pageToken'] = result['nextPageToken']
+                            time.sleep(result['pollingIntervalMillis'] / 1000)
+                            result = self.livechat_api.live_chat_messages_list(
+                                chat_id,
+                                pageToken=self.livechatIds[chat_id]['pageToken'])
+                        else:
+                            break
+
             time.sleep(1)
 
     def send_message(self, text, livechat_id):
@@ -144,42 +162,47 @@ class youtube_live_chat(object):
         }
 
         jsondump = dumps(message)
-        response = self.liveChat_api.LiveChatMessages_insert(jsondump)
+        response = self.livechat_api.live_chat_messages_insert(jsondump)
         self.livechatIds[livechat_id]['msg_ids'].add(response['id'])
 
-    def subscribeChatMessage(self, callback):
+    def subscribe_chat_message(self, callback):
         self.chat_subscribers.append(callback)
 
 
-class liveChat_api(object):
+class LiveChatApi(object):
 
     def __init__(self, http):
         self.http = http
         self.logger = logging.getLogger("liveChat_api")
 
-    def Get_All_Messages(self, livechatId):
+    def get_all_messages(self, livechatId):
         data = self.LiveChatMessages_list(livechatId, 50)
-        self.logger.debug(pformat(data))
         total_items = data['pageInfo']['totalResults']
-        while len(data['items']) < total_items:
-            pageToken = data['nextPageToken']
-            other_data = self.LiveChatMessages_list(livechatId, 50, pageToken)
-            data['items'].extend(other_data['items'])
-            pageToken = other_data['nextPageToken']
+        pageToken = data['nextPageToken']
+        if len(data['items']) < total_items:
+            time.sleep(data['pollingIntervalMillis'] / 1000)
+            while len(data['items']) < total_items:
+                other_data = self.LiveChatMessages_list(livechatId, 50, pageToken)
+                if not other_data['items']:
+                    break
+                else:
+                    data['items'].extend(other_data['items'])
+                    pageToken = other_data['nextPageToken']
+                    time.sleep(other_data['pollingIntervalMillis'] / 1000)
         return data
 
-    def LiveChatMessages_list(self, livechatId, maxResults=25, pageToken=None):
+    def live_chat_messages_list(self, livechatId, maxResults=25, pageToken=None):
         url = 'https://www.googleapis.com/youtube/v3/liveChat/messages'
         url = url + '?liveChatId={0}'.format(livechatId)
-        url = url + '&part=snippet'
-        url = url + '&maxResults={0}'.format(maxResults)
         if pageToken:
             url = url + '&pageToken={0}'.format(pageToken)
+        url = url + '&part=snippet'
+        url = url + '&maxResults={0}'.format(maxResults)
         resp, content = self.http.request(url, 'GET')
         data = loads(content)
         return data
 
-    def LiveChatMessages_insert(self, liveChatMessage):
+    def live_chat_messages_insert(self, liveChatMessage):
         url = 'https://www.googleapis.com/youtube/v3/liveChat/messages'
         url = url + '?part=snippet'
         resp, content = self.http.request(url,
@@ -189,5 +212,5 @@ class liveChat_api(object):
         data = loads(content)
         return data
 
-    def LiveChatMessages_delete(self, idstring):
+    def live_chat_message_delete(self, idstring):
         "DELETE https://www.googleapis.com/youtube/v3/liveChat/messages"
