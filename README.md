@@ -3,6 +3,7 @@
 A python module aimed to wrap the youtube live chat api and provide easy event based access to it
 
 # Usage
+run get_oauth_token.py and follow the instructions to generate your credentials file
 ```
 from youtubechat import YoutubeLiveChat, get_live_chat_id_for_stream_now
 from time import sleep
