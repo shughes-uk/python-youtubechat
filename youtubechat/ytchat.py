@@ -90,7 +90,7 @@ class youtube_live_chat(object):
 
         for chat_id in livechatIds:
             self.livechatIds[chat_id] = {'nextPoll': datetime.now(), 'msg_ids': None}
-            result = self.liveChat_api.LiveChatMessages_list(chat_id)
+            result = self.liveChat_api.Get_All_Messages(chat_id)
             pollingIntervalMillis = result['pollingIntervalMillis']
             self.livechatIds[chat_id]['msg_ids'] = {msg['id'] for msg in result['items']}
             self.livechatIds[chat_id]['nextPoll'] = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
@@ -113,11 +113,12 @@ class youtube_live_chat(object):
                 if self.livechatIds[chat_id]['nextPoll'] < datetime.now():
                     msgcache = self.livechatIds[chat_id]['msg_ids']
 
-                    result = self.liveChat_api.LiveChatMessages_list(chat_id)
+                    result = self.liveChat_api.Get_All_Messages(chat_id)
+                    # self.logger.debug(pformat(result))
                     pollingIntervalMillis = result['pollingIntervalMillis']
                     latest_messages = {msg['id'] for msg in result['items']}
-                    new_messages = latest_messages.difference(msgcache)
 
+                    new_messages = latest_messages.difference(msgcache)
                     new_msg_objs = [livechatMessage(self.http, json) for json in result['items']
                                     if json['id'] in new_messages]
 
@@ -154,11 +155,24 @@ class liveChat_api(object):
 
     def __init__(self, http):
         self.http = http
+        self.logger = logging.getLogger("liveChat_api")
+
+    def Get_All_Messages(self, livechatId):
+        data = self.LiveChatMessages_list(livechatId, 50)
+        self.logger.debug(pformat(data))
+        total_items = data['pageInfo']['totalResults']
+        while len(data['items']) < total_items:
+            pageToken = data['nextPageToken']
+            other_data = self.LiveChatMessages_list(livechatId, 50, pageToken)
+            data['items'].extend(other_data['items'])
+            pageToken = other_data['nextPageToken']
+        return data
 
     def LiveChatMessages_list(self, livechatId, maxResults=25, pageToken=None):
         url = 'https://www.googleapis.com/youtube/v3/liveChat/messages'
         url = url + '?liveChatId={0}'.format(livechatId)
         url = url + '&part=snippet'
+        url = url + '&maxResults={0}'.format(maxResults)
         if pageToken:
             url = url + '&pageToken={0}'.format(pageToken)
         resp, content = self.http.request(url, 'GET')
