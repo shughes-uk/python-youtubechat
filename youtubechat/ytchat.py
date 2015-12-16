@@ -77,6 +77,7 @@ class livechatMessage(object):
 class youtube_live_chat(object):
 
     def __init__(self, credential_filename, livechatIds):
+        self.logger = logging.getLogger(name="youtube_live_chat")
         self.chat_subscribers = []
         self.thread = threading.Thread(target=self.run)
         self.livechatIds = {}
@@ -87,11 +88,12 @@ class youtube_live_chat(object):
         self.liveChat_api = liveChat_api(self.http)
 
         for chat_id in livechatIds:
-            self.livechatIds[chat_id] = {'nextPoll': datetime.now(), 'msg_ids': []}
+            self.livechatIds[chat_id] = {'nextPoll': datetime.now(), 'msg_ids': None}
             result = self.liveChat_api.LiveChatMessages_list(chat_id)
             pollingIntervalMillis = result['pollingIntervalMillis']
             self.livechatIds[chat_id]['msg_ids'] = {msg['id'] for msg in result['items']}
             self.livechatIds[chat_id]['nextPoll'] = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
+        self.logger.debug("Initalized")
 
     def start(self):
         self.running = True
@@ -122,9 +124,11 @@ class youtube_live_chat(object):
                     nextPoll = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
                     self.livechatIds[chat_id]['nextPoll'] = nextPoll
                     if new_msg_objs:
+                        self.logger.debug("New chat messages")
+                        self.logger.debug(new_msg_objs)
                         for callback in self.chat_subscribers:
                             callback(new_msg_objs, chat_id)
-            time.sleep(0.2)
+            time.sleep(1)
 
     def send_message(self, text, livechat_id):
         message = {
