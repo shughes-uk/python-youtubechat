@@ -2,6 +2,7 @@
 
 import httplib2
 import urllib
+import logging
 import time
 from json import loads, dumps
 import dateutil.parser
