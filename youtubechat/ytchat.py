@@ -58,7 +58,7 @@ class MessageAuthor(object):
         self.channel_url = json['channelUrl']
         self.profile_image_url = json['profileImageUrl']
         self.channel_id = json['channelId']
-        self.displayName = json['displayName']
+        self.display_name = json['displayName']
         self.is_chat_owner = json['isChatOwner']
         self.is_chat_sponsor = json['isChatSponsor']
         self.is_chat_moderator = json['isChatModerator']
@@ -198,7 +198,7 @@ class YoutubeLiveChat(object):
                         mods.extend(result['items'])
                     else:
                         break
-                    if  'nextPageToken' not in result:
+                    if 'nextPageToken' not in result:
                         break
             moderator_objs = [LiveChatModerator(self.http, json) for json in mods]
             return moderator_objs
@@ -272,7 +272,7 @@ class LiveChatApi(object):
 
     def live_chat_messages_list(self,
                                 livechatId,
-                                part='snippet',
+                                part='snippet,authorDetails',
                                 maxResults=200,
                                 pageToken=None,
                                 profileImageSize=None):
