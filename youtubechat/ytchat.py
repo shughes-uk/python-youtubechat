@@ -51,6 +51,19 @@ def channelid_to_name(channelId, http):
     return data['items'][0]['snippet']['title']
 
 
+class MessageAuthor(object):
+
+    def __init__(self, json):
+        self.is_verified = json['isVerified']
+        self.channel_url = json['channelUrl']
+        self.profile_image_url = json['profileImageUrl']
+        self.channel_id = json['channelId']
+        self.displayName = json['displayName']
+        self.is_chat_owner = json['isChatOwner']
+        self.is_chat_sponsor = json['isChatSponsor']
+        self.is_chat_moderator = json['isChatModerator']
+
+
 class LiveChatMessage(object):
 
     def __init__(self, http, json):
@@ -64,9 +77,8 @@ class LiveChatMessage(object):
         self.display_message = html_parser.unescape(snippet['displayMessage'].encode('UTF-8'))
         self.has_display_content = snippet['hasDisplayContent']
         self.live_chat_id = snippet['liveChatId']
-        self.author_channel_id = snippet['authorChannelId']
-        self.author_channel_name = channelid_to_name(self.author_channel_id, http)
         self.published_at = get_datetime_from_string(snippet['publishedAt'])
+        self.author = MessageAuthor(json['authorDetails'])
 
     def delete(self):
         url = "https://www.googleapis.com/youtube/v3/liveChat/messages"
@@ -179,13 +191,13 @@ class LiveChatApi(object):
         self.logger = logging.getLogger("liveChat_api")
 
     def get_all_messages(self, livechatId):
-        data = self.LiveChatMessages_list(livechatId, 50)
+        data = self.LiveChatMessages_list(livechatId, maxResults=2000)
         total_items = data['pageInfo']['totalResults']
         pageToken = data['nextPageToken']
         if len(data['items']) < total_items:
             time.sleep(data['pollingIntervalMillis'] / 1000)
             while len(data['items']) < total_items:
-                other_data = self.LiveChatMessages_list(livechatId, 50, pageToken)
+                other_data = self.LiveChatMessages_list(livechatId, maxResults=2000, pageToken=pageToken)
                 if not other_data['items']:
                     break
                 else:
@@ -194,11 +206,18 @@ class LiveChatApi(object):
                     time.sleep(other_data['pollingIntervalMillis'] / 1000)
         return data
 
-    def live_chat_messages_list(self, livechatId, maxResults=200, pageToken=None):
+    def live_chat_messages_list(self,
+                                livechatId,
+                                part='snippet',
+                                maxResults=200,
+                                pageToken=None,
+                                profileImageSize=None):
         url = 'https://www.googleapis.com/youtube/v3/liveChat/messages'
         url = url + '?liveChatId={0}'.format(livechatId)
         if pageToken:
             url = url + '&pageToken={0}'.format(pageToken)
+        if profileImageSize:
+            url = url + '&profileImageSize={0}'.format(profileImageSize)
         url = url + '&part=snippet'
         url = url + '&maxResults={0}'.format(maxResults)
         resp, content = self.http.request(url, 'GET')

@@ -7,6 +7,7 @@ chat_obj = YoutubeLiveChat("oauth_creds", [livechat_id])
 
 def respond(msgs, chatid):
     for msg in msgs:
+        print msg
         msg.delete()
         chat_obj.send_message("RESPONSE!", chatid)
 
