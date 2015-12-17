@@ -194,7 +194,7 @@ class LiveChatApi(object):
                     time.sleep(other_data['pollingIntervalMillis'] / 1000)
         return data
 
-    def live_chat_messages_list(self, livechatId, maxResults=25, pageToken=None):
+    def live_chat_messages_list(self, livechatId, maxResults=200, pageToken=None):
         url = 'https://www.googleapis.com/youtube/v3/liveChat/messages'
         url = url + '?liveChatId={0}'.format(livechatId)
         if pageToken:
