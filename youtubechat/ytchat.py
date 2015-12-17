@@ -89,6 +89,28 @@ class LiveChatMessage(object):
         return self.display_message
 
 
+class LiveChatModerator(object):
+
+    def __init__(self, http, json):
+        self.http = http
+        self.json = json
+        self.etag = json['etag']
+        self.id = json['id']
+        snippet = json['snippet']
+        self.channel_id = snippet['moderatorDetails']['channelId']
+        self.channel_url = snippet['moderatorDetails']['channelUrl']
+        self.display_name = snippet['moderatorDetails']['displayName']
+        self.profile_image_url = snippet['moderatorDetails']['profileImageUrl']
+
+    def delete(self):
+        url = "https://www.googleapis.com/youtube/v3/liveChat/moderators"
+        url = url + '?id={0}'.format(self.id)
+        resp, content = self.http.request(url, 'DELETE')
+
+    def __repr__(self):
+        return self.display_name
+
+
 class YoutubeLiveChat(object):
 
     def __init__(self, credential_filename, livechatIds):
@@ -165,10 +187,31 @@ class YoutubeLiveChat(object):
 
             time.sleep(1)
 
-    def send_message(self, text, livechat_id):
+    def get_moderators(self, livechatId):
+        result = self.livechat_api.live_chat_moderators_list(livechatId)
+        if result['items']:
+            mods = result['items']
+            if result['pageInfo']['totalResults'] > result['pageInfo']['resultsPerPage']:
+                while result['items']:
+                    result = self.livechat_api.live_chat_moderators_list(livechatId, pageToken=result['nextPageToken'])
+                    if result['items']:
+                        mods.extend(result['items'])
+                    else:
+                        break
+                    if not 'nextPageToken' in result:
+                        break
+            moderator_objs = [LiveChatModerator(self.http, json) for json in mods]
+            return moderator_objs
+
+    def set_moderator(self, livechatId, moderator_channelid):
+        message = {u'snippet': {u'liveChatId': livechatId, "moderatorDetails": {"channelId": moderator_channelid}}}
+        jsondump = dumps(message)
+        return self.livechat_api.live_chat_moderators_insert(jsondump)
+
+    def send_message(self, text, livechatId):
         message = {
             u'snippet': {
-                u'liveChatId': livechat_id,
+                u'liveChatId': livechatId,
                 "textMessageDetails": {
                     "messageText": text
                 },
@@ -178,7 +221,7 @@ class YoutubeLiveChat(object):
 
         jsondump = dumps(message)
         response = self.livechat_api.live_chat_messages_insert(jsondump)
-        self.livechatIds[livechat_id]['msg_ids'].add(response['id'])
+        self.livechatIds[livechatId]['msg_ids'].add(response['id'])
 
     def subscribe_chat_message(self, callback):
         self.chat_subscribers.append(callback)
@@ -206,6 +249,27 @@ class LiveChatApi(object):
                     time.sleep(other_data['pollingIntervalMillis'] / 1000)
         return data
 
+    def live_chat_moderators_list(self, livechatId, part='snippet', maxResults=5, pageToken=None):
+        url = 'https://www.googleapis.com/youtube/v3/liveChat/moderators'
+        url = url + '?liveChatId={0}'.format(livechatId)
+        if pageToken:
+            url = url + '&pageToken={0}'.format(pageToken)
+        url = url + '&part={0}'.format(part)
+        url = url + '&maxResults={0}'.format(maxResults)
+        resp, content = self.http.request(url, 'GET')
+        data = loads(content)
+        return data
+
+    def live_chat_moderators_insert(self, liveChatId, liveChatModerator):
+        url = 'https://www.googleapis.com/youtube/v3/liveChat/messages'
+        url = url + '?part=snippet'
+        resp, content = self.http.request(url,
+                                          'POST',
+                                          headers={'Content-Type': 'application/json; charset=UTF-8'},
+                                          body=liveChatModerator)
+        data = loads(content)
+        return data
+
     def live_chat_messages_list(self,
                                 livechatId,
                                 part='snippet',
@@ -218,7 +282,7 @@ class LiveChatApi(object):
             url = url + '&pageToken={0}'.format(pageToken)
         if profileImageSize:
             url = url + '&profileImageSize={0}'.format(profileImageSize)
-        url = url + '&part=snippet'
+        url = url + '&part={0}'.format(part)
         url = url + '&maxResults={0}'.format(maxResults)
         resp, content = self.http.request(url, 'GET')
         data = loads(content)
