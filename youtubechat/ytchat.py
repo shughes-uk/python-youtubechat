@@ -198,7 +198,7 @@ class YoutubeLiveChat(object):
                         mods.extend(result['items'])
                     else:
                         break
-                    if not 'nextPageToken' in result:
+                    if  'nextPageToken' not in result:
                         break
             moderator_objs = [LiveChatModerator(self.http, json) for json in mods]
             return moderator_objs
