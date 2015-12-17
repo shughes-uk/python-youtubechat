@@ -10,6 +10,9 @@ from oauth2client.file import Storage
 from datetime import datetime, timedelta
 import threading
 from pprint import pformat
+from HTMLParser import HTMLParser
+
+html_parser = HTMLParser()
 
 
 def get_datetime_from_string(datestr):
@@ -57,8 +60,8 @@ class LiveChatMessage(object):
         self.id = json['id']
         snippet = json['snippet']
         self.type = snippet['type']
-        self.message_text = snippet['textMessageDetails']['messageText'].encode('UTF-8')
-        self.display_message = snippet['displayMessage'].encode('UTF-8')
+        self.message_text = html_parser.unescape(snippet['textMessageDetails']['messageText'].encode('UTF-8'))
+        self.display_message = html_parser.unescape(snippet['displayMessage'].encode('UTF-8'))
         self.has_display_content = snippet['hasDisplayContent']
         self.live_chat_id = snippet['liveChatId']
         self.author_channel_id = snippet['authorChannelId']
