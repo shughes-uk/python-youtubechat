@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 from youtubechat import YoutubeLiveChat, get_live_chat_id_for_stream_now
 from time import sleep
 
