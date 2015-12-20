@@ -160,6 +160,10 @@ class YoutubeLiveChat(object):
 
                     result = self.livechat_api.live_chat_messages_list(chat_id,
                                                                        pageToken=self.livechatIds[chat_id]['pageToken'])
+                    if 'pollingIntervalMillis' not in result:
+                        self.logger.warning("Empty result")
+                        self.logger.warning(pformat(result))
+                        continue
                     pollingIntervalMillis = result['pollingIntervalMillis']
                     while result['items']:
                         latest_messages = {msg['id'] for msg in result['items']}
