@@ -157,37 +157,43 @@ class YoutubeLiveChat(object):
             for chat_id in self.livechatIds:
                 if self.livechatIds[chat_id]['nextPoll'] < datetime.now():
                     msgcache = self.livechatIds[chat_id]['msg_ids']
+                    result = None
+                    try:
+                        result = self.livechat_api.live_chat_messages_list(
+                            chat_id,
+                            pageToken=self.livechatIds[chat_id]['pageToken'])
+                    except Exception, e:
+                        self.logger.warning(e)
+                        self.logger.warning("Exception while trying to get yt api")
+                    if result:
+                        if 'pollingIntervalMillis' not in result:
+                            self.logger.warning("Empty result")
+                            self.logger.warning(pformat(result))
+                            continue
+                        pollingIntervalMillis = result['pollingIntervalMillis']
+                        while result['items']:
+                            latest_messages = {msg['id'] for msg in result['items']}
+                            new_messages = latest_messages.difference(msgcache)
+                            new_msg_objs = [LiveChatMessage(self.http, json)
+                                            for json in result['items'] if json['id'] in new_messages]
 
-                    result = self.livechat_api.live_chat_messages_list(chat_id,
-                                                                       pageToken=self.livechatIds[chat_id]['pageToken'])
-                    if 'pollingIntervalMillis' not in result:
-                        self.logger.warning("Empty result")
-                        self.logger.warning(pformat(result))
-                        continue
-                    pollingIntervalMillis = result['pollingIntervalMillis']
-                    while result['items']:
-                        latest_messages = {msg['id'] for msg in result['items']}
-                        new_messages = latest_messages.difference(msgcache)
-                        new_msg_objs = [LiveChatMessage(self.http, json) for json in result['items']
-                                        if json['id'] in new_messages]
+                            self.livechatIds[chat_id]['msg_ids'].update(new_messages)
+                            nextPoll = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
+                            self.livechatIds[chat_id]['nextPoll'] = nextPoll
+                            if new_msg_objs:
+                                self.logger.debug("New chat messages")
+                                self.logger.debug(new_msg_objs)
+                                for callback in self.chat_subscribers:
+                                    callback(new_msg_objs, chat_id)
 
-                        self.livechatIds[chat_id]['msg_ids'].update(new_messages)
-                        nextPoll = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
-                        self.livechatIds[chat_id]['nextPoll'] = nextPoll
-                        if new_msg_objs:
-                            self.logger.debug("New chat messages")
-                            self.logger.debug(new_msg_objs)
-                            for callback in self.chat_subscribers:
-                                callback(new_msg_objs, chat_id)
-
-                        if result['pageInfo']['totalResults'] > result['pageInfo']['resultsPerPage']:
-                            self.livechatIds[chat_id]['pageToken'] = result['nextPageToken']
-                            time.sleep(result['pollingIntervalMillis'] / 1000)
-                            result = self.livechat_api.live_chat_messages_list(
-                                chat_id,
-                                pageToken=self.livechatIds[chat_id]['pageToken'])
-                        else:
-                            break
+                            if result['pageInfo']['totalResults'] > result['pageInfo']['resultsPerPage']:
+                                self.livechatIds[chat_id]['pageToken'] = result['nextPageToken']
+                                time.sleep(result['pollingIntervalMillis'] / 1000)
+                                result = self.livechat_api.live_chat_messages_list(
+                                    chat_id,
+                                    pageToken=self.livechatIds[chat_id]['pageToken'])
+                            else:
+                                break
 
             time.sleep(1)
 
