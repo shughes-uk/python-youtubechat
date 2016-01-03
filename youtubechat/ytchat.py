@@ -173,7 +173,10 @@ class YoutubeLiveChat(object):
                         pollingIntervalMillis = result['pollingIntervalMillis']
                         while result['items']:
                             latest_messages = {msg['id'] for msg in result['items']}
-                            new_messages = latest_messages.difference(msgcache)
+                            if msgcache:
+                                new_messages = latest_messages.difference(msgcache)
+                            else:
+                                new_messages = latest_messages
                             new_msg_objs = [LiveChatMessage(self.http, json)
                                             for json in result['items'] if json['id'] in new_messages]
 
