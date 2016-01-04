@@ -74,8 +74,8 @@ class LiveChatMessage(object):
         self.id = json['id']
         snippet = json['snippet']
         self.type = snippet['type']
-        self.message_text = html_parser.unescape(snippet['textMessageDetails']['messageText']).encode('ascii','ignore')
-        self.display_message = html_parser.unescape(snippet['displayMessage']).encode('ascii','ignore')
+        self.message_text = html_parser.unescape(snippet['textMessageDetails']['messageText'])
+        self.display_message = html_parser.unescape(snippet['displayMessage'])
         self.has_display_content = snippet['hasDisplayContent']
         self.live_chat_id = snippet['liveChatId']
         self.published_at = get_datetime_from_string(snippet['publishedAt'])
