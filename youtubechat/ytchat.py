@@ -1,7 +1,6 @@
 #!/usr/bin/python
 
 import httplib2
-import urllib
 import logging
 import time
 from json import loads, dumps
@@ -10,9 +9,36 @@ from oauth2client.file import Storage
 from datetime import datetime, timedelta
 import threading
 from pprint import pformat
-from HTMLParser import HTMLParser
+import cgi
 
-html_parser = HTMLParser()
+try:
+    # Python 3
+    from urllib.parse import urlencode
+    from html import unescape as html_unescape
+except ImportError:
+    # Python 2
+    from urllib import urlencode
+    from HTMLParser import HTMLParser
+
+    html_parser = HTMLParser()
+    def html_unescape(s):
+        return html_parser.unescape(s)
+
+class YoutubeLiveChatError(Exception):
+    def __init__(self, message, code=None, errors=None):
+        Exception.__init__(self, message)
+        self.code = code
+        self.errors = errors
+
+def _json_request(http, url, method='GET', headers=None, body=None):
+    resp, content = http.request(url, method, headers=headers, body=body)
+    content_type, content_type_params = cgi.parse_header(resp.get('content-type','application/json; charset=UTF-8'))
+    charset = content_type_params.get('charset','UTF-8')
+    data = loads(content.decode(charset))
+    if 'error' in data:
+        error = data['error']
+        raise YoutubeLiveChatError(error['message'], error.get('code'), error.get('errors'))
+    return resp, data
 
 
 def get_datetime_from_string(datestr):
@@ -21,33 +47,30 @@ def get_datetime_from_string(datestr):
 
 
 def get_live_chat_id_for_stream_now(credential_file):
-    storage = Storage("oauth_creds")
+    storage = Storage(credential_file)
     credentials = storage.get()
     http = credentials.authorize(httplib2.Http())
     url = "https://www.googleapis.com/youtube/v3/liveBroadcasts?"
     params = {'part': 'snippet', 'default': 'true'}
-    params = urllib.urlencode(params)
-    resp, content = http.request(url + params, 'GET')
-    data = loads(content)
+    params = urlencode(params)
+    resp, data = _json_request(http, url + params)
     return data['items'][0]['snippet']['liveChatId']
 
 
 def get_live_chat_id_for_broadcast_id(broadcastId, credential_file):
-    storage = Storage("oauth_creds")
+    storage = Storage(credential_file)
     credentials = storage.get()
     http = credentials.authorize(httplib2.Http())
     url = "https://www.googleapis.com/youtube/v3/liveBroadcasts?"
     params = {'part': 'snippet', 'id': broadcastId}
-    params = urllib.urlencode(params)
-    resp, content = http.request(url + params, 'GET')
-    data = loads(content)
+    params = urlencode(params)
+    resp, data = _json_request(http, url + params)
     return data['items'][0]['snippet']['liveChatId']
 
 
 def channelid_to_name(channelId, http):
     url = "https://www.googleapis.com/youtube/v3/channels?part=snippet&id={0}".format(channelId)
-    response, content = http.request(url, "GET")
-    data = loads(content)
+    response, data = _json_request(http, url)
     return data['items'][0]['snippet']['title']
 
 
@@ -73,8 +96,8 @@ class LiveChatMessage(object):
         self.id = json['id']
         snippet = json['snippet']
         self.type = snippet['type']
-        self.message_text = html_parser.unescape(snippet['textMessageDetails']['messageText'])
-        self.display_message = html_parser.unescape(snippet['displayMessage'])
+        self.message_text = html_unescape(snippet['textMessageDetails']['messageText'])
+        self.display_message = html_unescape(snippet['displayMessage'])
         self.has_display_content = snippet['hasDisplayContent']
         self.live_chat_id = snippet['liveChatId']
         self.published_at = get_datetime_from_string(snippet['publishedAt'])
@@ -125,11 +148,11 @@ class YoutubeLiveChat(object):
         self.livechat_api = LiveChatApi(self.http)
 
         for chat_id in livechatIds:
-            self.livechatIds[chat_id] = {'nextPoll': datetime.now(), 'msg_ids': None, 'pageToken': None}
+            self.livechatIds[chat_id] = {'nextPoll': datetime.now(), 'msg_ids': set(), 'pageToken': None}
             result = self.livechat_api.live_chat_messages_list(chat_id)
             while result['items']:
                 pollingIntervalMillis = result['pollingIntervalMillis']
-                self.livechatIds[chat_id]['msg_ids'] = {msg['id'] for msg in result['items']}
+                self.livechatIds[chat_id]['msg_ids'].update(msg['id'] for msg in result['items'])
                 self.livechatIds[chat_id]['nextPoll'] = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
                 if result['pageInfo']['totalResults'] > result['pageInfo']['resultsPerPage']:
                     self.livechatIds[chat_id]['pageToken'] = result['nextPageToken']
@@ -147,10 +170,13 @@ class YoutubeLiveChat(object):
         self.thread.daemon = True
         self.thread.start()
 
+    def join(self):
+        self.thread.join()
+
     def stop(self):
         self.running = False
         if self.thread.is_alive():
-            self.thread.join
+            self.thread.join()
 
     def run(self):
         while self.running:
@@ -162,7 +188,7 @@ class YoutubeLiveChat(object):
                         result = self.livechat_api.live_chat_messages_list(
                             chat_id,
                             pageToken=self.livechatIds[chat_id]['pageToken'])
-                    except Exception, e:
+                    except Exception as e:
                         self.logger.warning(e)
                         self.logger.warning("Exception while trying to get yt api")
                     if result:
@@ -273,18 +299,16 @@ class LiveChatApi(object):
             url = url + '&pageToken={0}'.format(pageToken)
         url = url + '&part={0}'.format(part)
         url = url + '&maxResults={0}'.format(maxResults)
-        resp, content = self.http.request(url, 'GET')
-        data = loads(content)
+        resp, data = _json_request(self.http, url)
         return data
 
     def live_chat_moderators_insert(self, liveChatId, liveChatModerator):
         url = 'https://www.googleapis.com/youtube/v3/liveChat/messages'
         url = url + '?part=snippet'
-        resp, content = self.http.request(url,
-                                          'POST',
-                                          headers={'Content-Type': 'application/json; charset=UTF-8'},
-                                          body=liveChatModerator)
-        data = loads(content)
+        resp, data = _json_request(self.http, url,
+                                   'POST',
+                                   headers={'Content-Type': 'application/json; charset=UTF-8'},
+                                   body=liveChatModerator)
         return data
 
     def live_chat_messages_list(self,
@@ -301,18 +325,16 @@ class LiveChatApi(object):
             url = url + '&profileImageSize={0}'.format(profileImageSize)
         url = url + '&part={0}'.format(part)
         url = url + '&maxResults={0}'.format(maxResults)
-        resp, content = self.http.request(url, 'GET')
-        data = loads(content)
+        resp, data = _json_request(self.http, url)
         return data
 
     def live_chat_messages_insert(self, liveChatMessage):
         url = 'https://www.googleapis.com/youtube/v3/liveChat/messages'
         url = url + '?part=snippet'
-        resp, content = self.http.request(url,
-                                          'POST',
-                                          headers={'Content-Type': 'application/json; charset=UTF-8'},
-                                          body=liveChatMessage)
-        data = loads(content)
+        resp, data = _json_request(self.http, url,
+                                   'POST',
+                                   headers={'Content-Type': 'application/json; charset=UTF-8'},
+                                   body=liveChatMessage)
         return data
 
     def live_chat_message_delete(self, idstring):

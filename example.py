@@ -9,7 +9,7 @@ chat_obj = YoutubeLiveChat("oauth_creds", [livechat_id])
 
 def respond(msgs, chatid):
     for msg in msgs:
-        print msg
+        print(msg)
         msg.delete()
         chat_obj.send_message("RESPONSE!", chatid)
 
@@ -17,8 +17,7 @@ def respond(msgs, chatid):
 try:
     chat_obj.start()
     chat_obj.subscribe_chat_message(respond)
-    while True:
-        sleep(0.1)
+    chat_obj.join()
 
 finally:
     chat_obj.stop()

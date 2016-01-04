@@ -5,6 +5,13 @@ run.bat
 __pycache__/
 *.py[cod]
 
+# vim swp files
+.*.swp
+
+# Secrets
+oauth_creds
+client_secrets.json
+
 # C extensions
 *.so
 
