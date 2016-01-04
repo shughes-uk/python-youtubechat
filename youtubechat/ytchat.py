@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 import threading
 from pprint import pformat
 from HTMLParser import HTMLParser
-import re
 
 html_parser = HTMLParser()
 
@@ -188,7 +187,11 @@ class YoutubeLiveChat(object):
                                 self.logger.debug("New chat messages")
                                 self.logger.debug(new_msg_objs)
                                 for callback in self.chat_subscribers:
-                                    callback(new_msg_objs, chat_id)
+                                    try:
+                                        callback(new_msg_objs, chat_id)
+                                    except:
+                                        msg = "Exception during callback to {0}".format(callback)
+                                        self.logger.exception(msg)
 
                             if result['pageInfo']['totalResults'] > result['pageInfo']['resultsPerPage']:
                                 self.livechatIds[chat_id]['pageToken'] = result['nextPageToken']
