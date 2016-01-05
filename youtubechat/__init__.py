@@ -1,1 +1,1 @@
-from ytchat import *
+from .ytchat import *
