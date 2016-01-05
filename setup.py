@@ -3,5 +3,5 @@ setup(name="youtubechat",
       version="0.1",
       packages=['youtubechat'],
       install_requires=[
-          'oauth2client', 'python-dateutil', 'httplib2','htmlparser','markupbase'
+          'oauth2client', 'python-dateutil', 'httplib2'
       ])
