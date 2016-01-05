@@ -10,16 +10,14 @@ from datetime import datetime, timedelta
 import threading
 from pprint import pformat
 import cgi
-
-try:
-    # Python 3
+import sys
+PY3 = sys.version_info[0] == 3
+if PY3:
     from urllib.parse import urlencode
     from html import unescape as html_unescape
-except ImportError:
-    # Python 2
+else:
     from urllib import urlencode
     from HTMLParser import HTMLParser
-
     html_parser = HTMLParser()
     def html_unescape(s):
         return html_parser.unescape(s)
@@ -300,6 +298,8 @@ class LiveChatApi(object):
         url = url + '&part={0}'.format(part)
         url = url + '&maxResults={0}'.format(maxResults)
         resp, data = _json_request(self.http, url)
+        resp, content = self.http.request(url, 'GET')
+        data = loads(content.decode("UTF-8"))
         return data
 
     def live_chat_moderators_insert(self, liveChatId, liveChatModerator):
