@@ -11,6 +11,8 @@ import threading
 from pprint import pformat
 import cgi
 import sys
+from Queue import Queue
+
 PY3 = sys.version_info[0] == 3
 if PY3:
     from urllib.parse import urlencode
@@ -19,19 +21,23 @@ else:
     from urllib import urlencode
     from HTMLParser import HTMLParser
     html_parser = HTMLParser()
+
     def html_unescape(s):
         return html_parser.unescape(s)
 
+
 class YoutubeLiveChatError(Exception):
+
     def __init__(self, message, code=None, errors=None):
         Exception.__init__(self, message)
         self.code = code
         self.errors = errors
 
+
 def _json_request(http, url, method='GET', headers=None, body=None):
     resp, content = http.request(url, method, headers=headers, body=body)
-    content_type, content_type_params = cgi.parse_header(resp.get('content-type','application/json; charset=UTF-8'))
-    charset = content_type_params.get('charset','UTF-8')
+    content_type, content_type_params = cgi.parse_header(resp.get('content-type', 'application/json; charset=UTF-8'))
+    charset = content_type_params.get('charset', 'UTF-8')
     data = loads(content.decode(charset))
     if 'error' in data:
         error = data['error']
@@ -139,6 +145,7 @@ class YoutubeLiveChat(object):
         self.chat_subscribers = []
         self.thread = threading.Thread(target=self.run)
         self.livechatIds = {}
+        self.message_queue = Queue()
 
         storage = Storage(credential_filename)
         credentials = storage.get()
@@ -178,6 +185,11 @@ class YoutubeLiveChat(object):
 
     def run(self):
         while self.running:
+            #send a queued messages
+            if not self.message_queue.empty():
+                to_send = self.message_queue.get()
+                self._send_message(to_send[0], to_send[1])
+            #check for messages
             for chat_id in self.livechatIds:
                 if self.livechatIds[chat_id]['nextPoll'] < datetime.now():
                     msgcache = self.livechatIds[chat_id]['msg_ids']
@@ -250,6 +262,9 @@ class YoutubeLiveChat(object):
         return self.livechat_api.live_chat_moderators_insert(jsondump)
 
     def send_message(self, text, livechatId):
+        self.message_queue.put((text, livechatId))
+
+    def _send_message(self, text, livechatId):
         message = {
             u'snippet': {
                 u'liveChatId': livechatId,
@@ -262,6 +277,7 @@ class YoutubeLiveChat(object):
 
         jsondump = dumps(message)
         response = self.livechat_api.live_chat_messages_insert(jsondump)
+        self.logger.debug(pformat(response))
         self.livechatIds[livechatId]['msg_ids'].add(response['id'])
 
     def subscribe_chat_message(self, callback):
@@ -305,7 +321,8 @@ class LiveChatApi(object):
     def live_chat_moderators_insert(self, liveChatId, liveChatModerator):
         url = 'https://www.googleapis.com/youtube/v3/liveChat/messages'
         url = url + '?part=snippet'
-        resp, data = _json_request(self.http, url,
+        resp, data = _json_request(self.http,
+                                   url,
                                    'POST',
                                    headers={'Content-Type': 'application/json; charset=UTF-8'},
                                    body=liveChatModerator)
@@ -331,10 +348,12 @@ class LiveChatApi(object):
     def live_chat_messages_insert(self, liveChatMessage):
         url = 'https://www.googleapis.com/youtube/v3/liveChat/messages'
         url = url + '?part=snippet'
-        resp, data = _json_request(self.http, url,
+        resp, data = _json_request(self.http,
+                                   url,
                                    'POST',
                                    headers={'Content-Type': 'application/json; charset=UTF-8'},
                                    body=liveChatMessage)
+        self.logger.debug(pformat(resp))
         return data
 
     def live_chat_message_delete(self, idstring):
