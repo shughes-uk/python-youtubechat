@@ -11,19 +11,14 @@ import threading
 from pprint import pformat
 import cgi
 import sys
-from Queue import Queue
 
 PY3 = sys.version_info[0] == 3
 if PY3:
     from urllib.parse import urlencode
-    from html import unescape as html_unescape
+    from queue import Queue
 else:
+    from queue import Queue
     from urllib import urlencode
-    from HTMLParser import HTMLParser
-    html_parser = HTMLParser()
-
-    def html_unescape(s):
-        return html_parser.unescape(s)
 
 
 class YoutubeLiveChatError(Exception):
@@ -100,8 +95,8 @@ class LiveChatMessage(object):
         self.id = json['id']
         snippet = json['snippet']
         self.type = snippet['type']
-        self.message_text = html_unescape(snippet['textMessageDetails']['messageText'])
-        self.display_message = html_unescape(snippet['displayMessage'])
+        self.message_text = snippet['textMessageDetails']['messageText']
+        self.display_message = snippet['displayMessage']
         self.has_display_content = snippet['hasDisplayContent']
         self.live_chat_id = snippet['liveChatId']
         self.published_at = get_datetime_from_string(snippet['publishedAt'])
@@ -185,11 +180,11 @@ class YoutubeLiveChat(object):
 
     def run(self):
         while self.running:
-            #send a queued messages
+            # send a queued messages
             if not self.message_queue.empty():
                 to_send = self.message_queue.get()
                 self._send_message(to_send[0], to_send[1])
-            #check for messages
+            # check for messages
             for chat_id in self.livechatIds:
                 if self.livechatIds[chat_id]['nextPoll'] < datetime.now():
                     msgcache = self.livechatIds[chat_id]['msg_ids']
@@ -213,8 +208,8 @@ class YoutubeLiveChat(object):
                                 new_messages = latest_messages.difference(msgcache)
                             else:
                                 new_messages = latest_messages
-                            new_msg_objs = [LiveChatMessage(self.http, json)
-                                            for json in result['items'] if json['id'] in new_messages]
+                            new_msg_objs = [LiveChatMessage(self.http, json) for json in result['items']
+                                            if json['id'] in new_messages]
 
                             self.livechatIds[chat_id]['msg_ids'].update(new_messages)
                             nextPoll = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
