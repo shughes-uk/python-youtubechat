@@ -17,7 +17,7 @@ if PY3:
     from urllib.parse import urlencode
     from queue import Queue
 else:
-    from queue import Queue
+    from Queue import Queue
     from urllib import urlencode
 
 
@@ -208,8 +208,8 @@ class YoutubeLiveChat(object):
                                 new_messages = latest_messages.difference(msgcache)
                             else:
                                 new_messages = latest_messages
-                            new_msg_objs = [LiveChatMessage(self.http, json) for json in result['items']
-                                            if json['id'] in new_messages]
+                            new_msg_objs = [LiveChatMessage(self.http, json)
+                                            for json in result['items'] if json['id'] in new_messages]
 
                             self.livechatIds[chat_id]['msg_ids'].update(new_messages)
                             nextPoll = datetime.now() + timedelta(seconds=pollingIntervalMillis / 1000)
