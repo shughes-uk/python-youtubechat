@@ -1,8 +1,10 @@
 #!/usr/bin/env python
+import webbrowser
+
+import httplib2
 from oauth2client import client
 from oauth2client.file import Storage
-import webbrowser
-import httplib2
+
 if not hasattr(__builtins__,'raw_input'):
     # Python 3
     raw_input = input

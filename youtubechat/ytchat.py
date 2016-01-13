@@ -1,16 +1,17 @@
 #!/usr/bin/python
 
-import httplib2
-import logging
-import time
-from json import loads, dumps
-import dateutil.parser
-from oauth2client.file import Storage
-from datetime import datetime, timedelta
-import threading
-from pprint import pformat
 import cgi
+import logging
 import sys
+import threading
+import time
+from datetime import datetime, timedelta
+from json import dumps, loads
+from pprint import pformat
+
+import dateutil.parser
+import httplib2
+from oauth2client.file import Storage
 
 PY3 = sys.version_info[0] == 3
 if PY3:

@@ -1,7 +1,8 @@
 #!/usr/bin/env python
 
-from youtubechat import YoutubeLiveChat, get_live_chat_id_for_stream_now
 from time import sleep
+
+from youtubechat import YoutubeLiveChat, get_live_chat_id_for_stream_now
 
 livechat_id = get_live_chat_id_for_stream_now("oauth_creds")
 chat_obj = YoutubeLiveChat("oauth_creds", [livechat_id])
