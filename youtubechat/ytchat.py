@@ -1,4 +1,5 @@
 #!/usr/bin/python
+# This Python file uses the following encoding: utf-8
 
 import cgi
 import logging
@@ -45,6 +46,26 @@ def get_datetime_from_string(datestr):
     dt = dateutil.parser.parse(datestr)
     return dt
 
+def get_top_stream_chat_ids(credential_file):
+    playlist_id = "PLiCvVJzBupKmEehQ3hnNbbfBjLUyvGlqx"
+    storage = Storage(credential_file)
+    credentials = storage.get()
+    http = credentials.authorize(httplib2.Http())
+    url = "https://www.googleapis.com/youtube/v3/playlistItems?"
+    params = {'part': 'contentDetails','playlistId':playlist_id}
+    params = urlencode(params)
+    resp, data = _json_request(http, url + params)
+    chatids = []
+    for item in data['items']:
+        videoid = item['contentDetails']['videoId']
+        url = "https://www.googleapis.com/youtube/v3/videos?"
+        params = {'part': 'liveStreamingDetails','id': videoid}
+        params = urlencode(params)
+        response_obj, video_data = _json_request(http, url + params)
+        chatId = video_data['items'][0]['liveStreamingDetails']['activeLiveChatId']
+        chatids.append(chatId)
+
+    return chatids
 
 def get_live_chat_id_for_stream_now(credential_file):
     storage = Storage(credential_file)
@@ -109,7 +130,10 @@ class LiveChatMessage(object):
         resp, content = self.http.request(url, 'DELETE')
 
     def __repr__(self):
-        return self.display_message
+        if PY3:
+            return self.display_message
+        else:
+            return self.display_message.encode("UTF-8")
 
 
 class LiveChatModerator(object):
@@ -131,7 +155,10 @@ class LiveChatModerator(object):
         resp, content = self.http.request(url, 'DELETE')
 
     def __repr__(self):
-        return self.display_name
+        if PY3:
+            return self.display_name
+        else:
+            return self.display_name.encode("UTF-8")
 
 
 class YoutubeLiveChat(object):
