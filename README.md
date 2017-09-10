@@ -18,6 +18,8 @@ chat_obj = YoutubeLiveChat("oauth_creds", [livechat_id])
 def respond(msgs, chatid):
     for msg in msgs:
         msg.delete()
+        msg.tempban() # Bans Author for 300 Sek.
+        msg.permaban() # Bans Author forever.
         chat_obj.send_message("RESPONSE!", chatid)
 
 
@@ -30,7 +32,3 @@ finally:
     chat_obj.stop()
 ```
 
-# Future Work
-
-- Moderator control
-- Banlist control
