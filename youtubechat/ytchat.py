@@ -128,7 +128,26 @@ class LiveChatMessage(object):
         url = "https://www.googleapis.com/youtube/v3/liveChat/messages"
         url = url + '?id={0}'.format(self.id)
         resp, content = self.http.request(url, 'DELETE')
-
+    def permaban(self):
+        url = "https://www.googleapis.com/youtube/v3/liveChat/bans"
+        message = {u'snippet': {u'liveChatId': self.live_chat_id, u'type': 'permanent', "bannedUserDetails": {"channelId": self.author.channel_id}}}
+        jsondump = dumps(message)
+        url = url + '?part=snippet'
+        resp, data = _json_request(self.http,
+                                   url,
+                                   'POST',
+                                   headers={'Content-Type': 'application/json; charset=UTF-8'},
+                                   body=jsondump)
+    def tempban(self, timee = 300):
+        url = "https://www.googleapis.com/youtube/v3/liveChat/bans"
+        message = {u'snippet': {u'liveChatId': self.live_chat_id, u'type': 'temporary', "banDurationSeconds": timee, "bannedUserDetails": {"channelId": self.author.channel_id}}}
+        jsondump = dumps(message)
+        url = url + '?part=snippet'
+        resp, data = _json_request(self.http,
+                                   url,
+                                   'POST',
+                                   headers={'Content-Type': 'application/json; charset=UTF-8'},
+                                   body=jsondump)
     def __repr__(self):
         if PY3:
             return self.display_message
