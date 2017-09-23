@@ -19,6 +19,7 @@ def respond(msgs, chatid):
     for msg in msgs:
         msg.delete()
         msg.tempban() # Bans Author for 300 Sek.
+        msg.tempban(125) # Bans Author for 125 Sek.
         msg.permaban() # Bans Author forever.
         chat_obj.send_message("RESPONSE!", chatid)
 
