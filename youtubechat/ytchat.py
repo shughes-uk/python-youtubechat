@@ -138,6 +138,8 @@ class LiveChatMessage(object):
                                    'POST',
                                    headers={'Content-Type': 'application/json; charset=UTF-8'},
                                    body=jsondump)
+        jsonresponse = dumps(data)
+        return data['id']
     def tempban(self, timee = 300):
         url = "https://www.googleapis.com/youtube/v3/liveChat/bans"
         message = {u'snippet': {u'liveChatId': self.live_chat_id, u'type': 'temporary', "banDurationSeconds": timee, "bannedUserDetails": {"channelId": self.author.channel_id}}}
@@ -148,6 +150,10 @@ class LiveChatMessage(object):
                                    'POST',
                                    headers={'Content-Type': 'application/json; charset=UTF-8'},
                                    body=jsondump)
+    def unban(self, id):
+        url = "https://www.googleapis.com/youtube/v3/liveChat/bans"
+        url = url + '?id=' + id
+        content = self.http.request(url, 'DELETE')
     def __repr__(self):
         if PY3:
             return self.display_message
