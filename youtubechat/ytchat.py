@@ -4,8 +4,6 @@
 import cgi
 import logging
 import sys
-import json
-import sys
 import threading
 import time
 from datetime import datetime, timedelta
