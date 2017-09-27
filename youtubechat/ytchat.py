@@ -138,7 +138,7 @@ class LiveChatMessage(object):
                                    'POST',
                                    headers={'Content-Type': 'application/json; charset=UTF-8'},
                                    body=jsondump)
-        popo = json.dumps(data)
+        json.dumps(data)
         return data['id']
     def tempban(self, timee = 300):
         url = "https://www.googleapis.com/youtube/v3/liveChat/bans"
