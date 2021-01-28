@@ -72,7 +72,7 @@ def get_live_chat_id_for_stream_now(credential_file):
     credentials = storage.get()
     http = credentials.authorize(httplib2.Http())
     url = "https://www.googleapis.com/youtube/v3/liveBroadcasts?"
-    params = {'part': 'snippet', 'default': 'true'}
+    params = {'part': 'snippet', 'mine': 'true'}
     params = urlencode(params)
     resp, data = _json_request(http, url + params)
     return data['items'][0]['snippet']['liveChatId']
